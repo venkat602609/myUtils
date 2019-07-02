@@ -1,0 +1,121 @@
+Where can you ger a virtual box?
+https://www.virtualbox.org/wiki/Downloads
+
+You cant use ford network to access virtualbox stes, you need to use public wifi
+
+How to get a virtual box?
+https://www.osboxes.org/virtualbox-images/
+Note: DONOT DOWNLOAD VMWARE image if you are using virtual box, download vBox image
+
+How to start a virtual image using Vbox?
+https://www.osboxes.org/guide/
+
+Notes on SocketCAN
+
+1. Installing socket CAN
+$sudo apt-get install can-utils
+
+2. Check for available can devices - after connecting the CAN HW to PC
+dmesg | grep CAN
+This should show the attached can device and CAN channel
+MCP2517FD - can-fd interface name find out the attached device on the pi (ex: can0/can1 etc)
+If you have any other interface, in order for this to showup, the drivers need to be installed
+
+
+3. verify the interface working
+ifconfig can0(device name as per dmesg)
+
+4. now set the can speed and type
+ip link set can0 type can help (type this to get all help options)
+
+
+$ sudo ip link set can0 type can bitrate 500000
+$ sudo ip link set up can0
+
+
+In case of add behavior - use below commands to reset the interface:
+$ sudo ip link set canX type can restart-ms 100
+$ sudo ip link set canX type can restart
+
+------------------------------
+
+for some reason the device buffer gets full after some time.  and the device becomes unresponsive.
+To resolve this use below command
+
+reboot
+sudo ifconfig can0 txqueuelen 1000
+then bring the can device up
+sudo /sbin/ip link set can0 up type can bitrate 500000 dbitrate 2000000 fd on samplepoint .8 dsample-point .8
+
+
+--------------------
+To create a virtual can device:
+
+To check if you have any can modules enabled - use lsmod to list all enabled/loaded kernel modules
+lsmod | grep can  
+
+If you cant find vcan - use modprobe to load the vcan kernel module (after installing socketcan/can-utils)
+modprobe vcan
+
+Now use dmesg to check if the vcan driver is available
+dmesg | grep vcan
+
+** vcan module is loaded from kernel and available to create virtual can interfaces
+
+ip link add dev vcan0 type vcan
+
+ip link set vcan0 mtu 72
+What is MTU? 
+The CAN netdevice driver capabilities can be distinguished by the network devices maximum transfer unit (MTU):
+MTU = 16 (CAN_MTU) => sizeof(struct can_frame) => 'legacy' CAN device
+MTU = 72 (CANFD_MTU) => sizeof(struct canfd_frame) => CAN FD capable device
+
+1. add  two new virtualcandevices
+	device 1 -> vcan0
+	device 2 -> vcan1
+	Load the virtual can device
+	>>modprobe vcan
+	>>ip link add dev vcanX type vcan
+	>>ip link set up vcanX mtu 72
+	enable the devices
+	>>sudo ip link set vcanX up type vcan
+	
+	
+2. establish communication between two virtual nodes - using virtual gateway
+	We can do this by adding a routing rule using can-w
+	first enable the can-gw by loading the module using below command
+	>>sudo modprobe can-gw  ----->can gateway, enabling can gateway
+	add a new rule using cangw to echo packets in between the virtual CAN networks
+	>>sudo cangw -A -s vcan0 -d vcan1 -e 
+	-A add a new rule
+	-s source
+	-d destination
+	-e echo sent frames
+	
+	
+	Now you have a basic setup of the can networks
+	vcan0 is the sender of canmessages and vcan1 is the  receiver of CAN message
+	** for some reason cansniffer is not showing CAN message only candump shows the FD messages(Need to figureout why)
+	
+	Sending can frames:
+	use cangen 
+	for normal frame messages:
+	cangen vcan0 -g 250 -I i -L i -D i 
+	-g gap im ms
+	-I ID generation mode
+	-L DLC generation mode
+	-D date generation mode
+	
+	modes:
+		r ==> random
+		i ==> increment
+		<hexvalues> => fixed value 
+	
+	for extended frame messages
+	cangen vcan0 -g 250 -I i -L i -D i -e
+	
+	if you need to see what you are sending -v (verbose) 
+	
+	
+	
+	
